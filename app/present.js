@@ -146,7 +146,11 @@
       return v.currentTime > 0.05 ? 'paused' : 'ready';
     }
 
+    // Don't announce a position until we've heard the server's last known
+    // one; otherwise a reloaded window would reset the talk to slide 1.
+    let ready = false;
     function publish() {
+      if (!ready) return;
       const v = curVideo();
       send({
         t: 'state', index, total: slides.length, id: slides[index].id, black, qr, cc,
@@ -220,8 +224,11 @@
     // audience window comes back on the slide it was showing.
     let resumed = false;
     const es = new EventSource('/events');
+    const goLive = () => { if (!ready) { ready = true; publish(); } };
+    setTimeout(goLive, 1500); // fresh start: nothing to resume
     es.onmessage = (e) => {
       const m = JSON.parse(e.data);
+      if (m.t === 'followers' && !resumed) { resumed = true; goLive(); } // replay had no state
       if (m.t === 'cmd') run(m.cmd, m.arg);
       if (m.t === 'caption') onCaption(m);
       if (m.t === 'state' && !resumed) {
@@ -229,6 +236,7 @@
         if (m.index !== index) show(m.index);
         if (m.black) setBlack(true);
         if (typeof m.cc === 'boolean') setCc(m.cc);
+        goLive();
       }
     };
 
@@ -241,7 +249,7 @@
 
     setInterval(publish, 2000); // heartbeat so the speaker view knows we're alive
     const start = parseInt(new URLSearchParams(location.search).get('slide') || '1', 10) - 1;
-    if (start > 0) resumed = true;
+    if (start > 0) { resumed = true; ready = true; }
     show(start);
   }
 

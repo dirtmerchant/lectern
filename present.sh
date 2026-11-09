@@ -8,6 +8,8 @@
 #   ./present.sh [talk-dir]          present (talk-dir holds talk.json; default .)
 #   ./present.sh --check [talk-dir]  preflight only, opens nothing
 #   ./present.sh --serve [talk-dir]  server only: open the printed URLs in any browser
+#   ./present.sh --stage [talk-dir]  recording layout: projector + a live phone side by side
+#                                    in one window, speaker view beside it (laptop screen only)
 #   ./present.sh init <dir>          start a new talk from a template
 #
 # Env overrides:
@@ -49,6 +51,7 @@ while [[ "${1:-}" == --* ]]; do
   case "$1" in
     --check) MODE=check ;;
     --serve) MODE=serve ;;
+    --stage) MODE=stage ;;
     --no-follow) FOLLOW_PORT=0 ;;
     *) die "unknown option $1" ;;
   esac
@@ -133,7 +136,14 @@ EOF
   sp="${PRESENT_SPEAKER:-${builtin_idx:-1}}"
   au="${PRESENT_AUDIENCE:-$(echo "$screens" | awk -v sp="$sp" '$1!=sp{print $1; exit}')}"
   geom() { echo "$screens" | awk -v i="$1" '$1==i{printf "%d %d %d %d", $2, $3, $4, $5}'; }
-  if [[ -z "$au" || "$count" -lt 2 ]]; then
+  if [[ $MODE == stage ]]; then
+    [[ "$FOLLOW_PORT" == 0 ]] && die "--stage needs the phone view (followAlong on)"
+    read -r X Y W H <<<"$(geom "$sp")"
+    AU_POS="$X,$((Y + 25))"; AU_SIZE="$((W * 70 / 100)),$((H - 25))"
+    SP_POS="$((X + W * 70 / 100)),$((Y + 25))"; SP_SIZE="$((W * 30 / 100)),$((H - 25))"
+    AU_FS=()
+    ok "stage layout on display $sp: record the left window (or the whole screen)"
+  elif [[ -z "$au" || "$count" -lt 2 ]]; then
     warn "Only one display: rehearsal mode (both windows on this screen, audience not fullscreen)"
     read -r X Y W H <<<"$(geom 1)"
     AU_POS="$X,$((Y + 25))"; AU_SIZE="$((W * 55 / 100)),$((W * 55 / 100 * 9 / 16 + 30))"
@@ -180,7 +190,7 @@ mkdir -p "$PROFILES/audience" "$PROFILES/speaker"
 
 "$CHROME" "${FLAGS[@]}" --user-data-dir="$PROFILES/audience" \
   --window-position="$AU_POS" --window-size="$AU_SIZE" ${AU_FS[@]+"${AU_FS[@]}"} \
-  --app="$URL?view=audience" >/dev/null 2>&1 & pids+=($!)
+  --app="$([[ $MODE == stage ]] && echo "${URL%index.html}stage.html" || echo "$URL?view=audience")" >/dev/null 2>&1 & pids+=($!)
 sleep 1.5
 # Speaker opens last so it has keyboard focus: the clicker drives it.
 # The speaker window only ever loads this local page; auto-allow its mic so
