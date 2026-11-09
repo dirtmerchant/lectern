@@ -10,6 +10,7 @@
 #   ./present.sh --serve [talk-dir]  server only: open the printed URLs in any browser
 #   ./present.sh --stage [talk-dir]  recording layout: projector + a live phone side by side
 #                                    in one window, speaker view beside it (laptop screen only)
+#   ./present.sh --resume [talk-dir] carry on with the latest take instead of starting a new one
 #   ./present.sh init <dir>          start a new talk from a template
 #
 # Env overrides:
@@ -55,6 +56,7 @@ while [[ "${1:-}" == --* ]]; do
     --serve) MODE=serve ;;
     --stage) MODE=stage ;;
     --no-follow) FOLLOW_PORT=0 ;;
+    --resume) export LECTERN_RESUME=1 ;;
     *) die "unknown option $1" ;;
   esac
   shift
@@ -221,7 +223,8 @@ CAPTURE="$([[ $MODE == stage ]] && echo "lectern stage" || echo "Audience")"
 echo
 echo "${bold}Presenting.${rst} Keep the speaker window focused; the clicker drives it."
 echo "  Q shows the QR code · C captions on the projector · M pauses the captions mic"
-echo "  V records the talk · W camera bubble on the slides · archive: http://127.0.0.1:$PORT/archive"
+echo "  V records the talk · W camera bubble on the slides · Shift-N twice starts a new take"
+echo "  archive: http://127.0.0.1:$PORT/archive"
 echo "  T starts the timer · B blacks the projector · close the speaker window (or Ctrl-C) to quit"
 echo "  Before going on: turn on Do Not Disturb, quit Slack/Mail, plug in power."
 

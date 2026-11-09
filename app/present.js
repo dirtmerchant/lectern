@@ -248,6 +248,7 @@
       if (m.t === 'followers' && !resumed) { resumed = true; goLive(); } // replay had no state
       if (m.t === 'cmd') run(m.cmd, m.arg);
       if (m.t === 'caption') onCaption(m);
+      if (m.t === 'take') { ccLines.length = 0; ccInterim = ''; renderCc(); }
       if (m.t === 'state' && !resumed) {
         resumed = true;
         if (m.index !== index) show(m.index);
@@ -408,6 +409,15 @@
         .then((r) => r.json()).then((d) => { recState.file = d.file; renderRec(); }).catch(() => {});
       renderRec();
     }
+    let takeArmed = 0;
+    function newTake() {
+      // Press Shift-N twice within 2s: a stray key shouldn't split a talk in two.
+      if (Date.now() - takeArmed > 2000) { takeArmed = Date.now(); flash('Press Shift-N again to start a new take'); return; }
+      takeArmed = 0; flash('');
+      if (recState.rec) recState.rec.stop(); // the recording belongs to the take that's ending
+      cap.last = ''; capShow('');
+      fetch('/take/new', { method: 'POST' }).catch(() => {});
+    }
     function recToggle() { if (recState.rec) recState.rec.stop(); else recStart(); }
     let archive = null;
     function renderRec() {
@@ -417,7 +427,7 @@
       const es = $('sp-captions').querySelector('.a-es');
       if (archive) {
         const ok = archive.es === 'connected';
-        es.textContent = `${archive.saved} captions saved · ${ok ? 'Elasticsearch ✓' : archive.es === 'off' ? 'disk only' : 'Elasticsearch: ' + archive.es}`;
+        es.textContent = `Take ${archive.take} · ${archive.saved} captions saved · ${ok ? 'Elasticsearch ✓' : archive.es === 'off' ? 'disk only' : 'Elasticsearch: ' + archive.es}`;
         es.className = 'a-es ' + (ok ? 'ok' : archive.es === 'off' ? '' : 'bad');
       }
     }
@@ -568,6 +578,7 @@
       speaker: true,
       timer: toggleTimer,
       mic: capToggle,
+      take: newTake,
       record: recToggle,
       reset: resetTimer,
       size: (d) => { size = Math.max(16, Math.min(40, size + d)); applySize(); try { localStorage.setItem('scriptSize', size); } catch (e) {} },
@@ -598,6 +609,7 @@
       else if (k === 'c' || k === 'C') run('cc');
       else if ((k === 'm' || k === 'M') && opt.mic) opt.mic();
       else if ((k === 'v' || k === 'V') && opt.record) opt.record();
+      else if (k === 'N' && opt.take) opt.take(); // Shift-N: lowercase n is 'next'
       else if (k === 'w' || k === 'W') run('cam');
       else if (k === 'k' || k === 'K') run('clipToggle');
       else if (k === 'j' || k === 'J') run('clipRestart');

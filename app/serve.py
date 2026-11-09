@@ -266,7 +266,7 @@ sys.path.insert(0, APP)
 from archive import Archive  # noqa: E402
 
 ARCHIVE = Archive(TALK["root"], TALK["title"], TALK["slides"], TALK["captions"]["lang"],
-                  es_url=TALK["elasticsearch"])
+                  es_url=TALK["elasticsearch"], resume=os.environ.get("LECTERN_RESUME") == "1")
 # Final captions, resumed from the durable log if this talk ran earlier today.
 transcript = [{"id": c["caption_id"], "text": c["text"], "slide": c["slide"], "at": c["spoken_at"]}
               for c in ARCHIVE.captions]
@@ -356,7 +356,21 @@ def transcript_text():
 
 def archive_status():
     return {"t": "archive", "es": ARCHIVE.es_state, "saved": len(ARCHIVE.captions),
-            "talk_id": ARCHIVE.talk_id, "recording": rec["file"]}
+            "talk_id": ARCHIVE.talk_id, "take": ARCHIVE.take, "recording": rec["file"]}
+
+
+def start_new_take():
+    """Close any recording, open the next take, and tell every screen to start fresh."""
+    global interim
+    finish_recording()
+    n = ARCHIVE.new_take()
+    with lock:
+        transcript.clear()
+        interim = None
+    msg = json.dumps({"t": "take", "take": n})
+    broadcast(public_listeners, msg)
+    broadcast(private_listeners, msg)
+    return n
 
 
 def status_loop():
@@ -534,10 +548,10 @@ class Presenter(Base):
         elif p == "/api/search":
             qs = parse_qs(urlsplit(self.path).query)
             q = (qs.get("q") or [""])[0].strip()[:200]
-            talk = (qs.get("talk") or [None])[0]
-            self.send_json(ARCHIVE.search(q, talk) if q else {"hits": [], "total": 0, "engine": "", "talks": []})
+            take = (qs.get("take") or [None])[0]
+            self.send_json(ARCHIVE.search(q, take) if q else {"hits": [], "total": 0, "engine": "", "talks": []})
         elif p == "/api/talks":
-            self.send_json({"current": ARCHIVE.talk_id, "es": ARCHIVE.es_state, "talks": ARCHIVE.talks()})
+            self.send_json({"current": ARCHIVE.take_id, "es": ARCHIVE.es_state, "talks": ARCHIVE.talks()})
         elif p == "/api/vtt":
             body = ARCHIVE.vtt().encode()
             self.send_response(200)
@@ -563,12 +577,14 @@ class Presenter(Base):
         if p == "/rec/start":
             body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", "0") or 0), 4096)) or b"{}")
             finish_recording()
+            if ARCHIVE.meta.get("recording"):
+                start_new_take()  # one recording per take: recording again starts the next take
             name = time.strftime("recording-%H%M%S.webm")
             at = int(body.get("at") or time.time() * 1000)
             with lock:
                 rec["file"], rec["fh"] = name, open(os.path.join(ARCHIVE.dir, name), "ab")
             ARCHIVE.recording_started(at, name)
-            return self.send_json({"file": name, "talk_id": ARCHIVE.talk_id})
+            return self.send_json({"file": name, "talk_id": ARCHIVE.talk_id, "take": ARCHIVE.take})
         if p == "/rec/chunk":
             n = int(self.headers.get("Content-Length", "0") or 0)
             if n > 64 * 1024 * 1024:
@@ -580,6 +596,9 @@ class Presenter(Base):
                     fh.write(data)
                     fh.flush()
             return self.send_json({"ok": bool(fh)}, 200 if fh else 409)
+        if p == "/take/new":
+            self.rfile.read(int(self.headers.get("Content-Length", "0") or 0))
+            return self.send_json({"take": start_new_take()})
         if p == "/rec/stop":
             self.rfile.read(int(self.headers.get("Content-Length", "0") or 0))
             return self.send_json({"file": finish_recording()})
@@ -627,7 +646,7 @@ class Follow(Base):
         elif p == "/f/search":
             # Attendees can search what's been said in this talk (never other talks).
             q = (parse_qs(urlsplit(self.path).query).get("q") or [""])[0].strip()[:200]
-            res = ARCHIVE.search(q, ARCHIVE.talk_id, size=20) if q else {"hits": [], "total": 0}
+            res = ARCHIVE.search(q, ARCHIVE.take_id, size=20) if q else {"hits": [], "total": 0}
             hits = [{"text": h["text"], "highlight": h.get("highlight"), "slide": h["slide"], "at": h["spoken_at"]}
                     for h in res["hits"]]
             self.send_json({"total": res.get("total", 0), "engine": res.get("engine", ""), "hits": hits})
@@ -684,7 +703,7 @@ def main():
         servers.append(Server(("0.0.0.0", FOLLOW_PORT), Follow))
     threading.Thread(target=status_loop, daemon=True).start()
     print(f"lectern: {TALK['title']} · {len(TALK['slides'])} slides", flush=True)
-    print(f"lectern: captions saved to {os.path.relpath(ARCHIVE.dir)}"
+    print(f"lectern: take {ARCHIVE.take} · captions saved to {os.path.relpath(ARCHIVE.dir)}"
           + (f" and Elasticsearch at {TALK['elasticsearch']}" if TALK["elasticsearch"] else " (no Elasticsearch configured)"),
           flush=True)
     if FOLLOW_URL:

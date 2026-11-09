@@ -47,7 +47,7 @@
     <form id="form" role="search">
       <label class="sr" for="q" hidden>Search captions</label>
       <input id="q" type="search" placeholder="What was said? e.g. curb cut" autocomplete="off" autofocus>
-      <select id="talk" aria-label="Talk"><option value="">All talks</option></select>
+      <select id="talk" aria-label="Talk"><option value="">All takes</option></select>
       <button>Search</button>
     </form>
     <div class="meta" id="meta"></div>
@@ -68,21 +68,21 @@
   const safeMark = (h) => esc(h).replace(/&lt;(\/?)mark&gt;/g, '<$1mark>');
 
   const info = await (await fetch('/api/talks')).json();
-  const talks = Object.fromEntries(info.talks.map((t) => [t.talk_id, t]));
+  const talks = Object.fromEntries(info.talks.map((t) => [t.take_id, t]));
   info.talks.forEach((t) => {
     const o = document.createElement('option');
-    o.value = t.talk_id;
-    o.textContent = `${t.title} · ${new Date(t.started_at).toLocaleDateString()}`;
+    o.value = t.take_id;
+    o.textContent = `${t.title} · take ${t.take} · ${new Date(t.started_at).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}${t.take_id === info.current ? ' (current)' : ''}`;
     $('talk').appendChild(o);
   });
-  $('sub').innerHTML = `${info.talks.length} talk${info.talks.length === 1 ? '' : 's'} archived · search: ` +
+  $('sub').innerHTML = `${info.talks.length} take${info.talks.length === 1 ? '' : 's'} archived · search: ` +
     (info.es === 'connected' ? '<b>Elasticsearch</b>' : esc(info.es === 'off' ? 'this talk only (no Elasticsearch)' : 'Elasticsearch ' + info.es));
 
   let loaded = null;
   function play(h) {
-    const t = talks[h.talk_id];
-    if (!t || !t.recording) { $('now').textContent = 'No recording for this talk on this laptop. The caption is still saved.'; return; }
-    const src = `/rec/${encodeURIComponent(h.talk_id)}/${encodeURIComponent(t.recording)}`;
+    const t = talks[h.take_id];
+    if (!t || !t.recording) { $('now').textContent = 'No recording for this take on this laptop. The caption is still saved.'; return; }
+    const src = '/rec/' + t.recording.split('/').map(encodeURIComponent).join('/');
     const v = $('video');
     if (loaded !== src) {
       loaded = src;
@@ -97,7 +97,7 @@
     const at = Math.max(0, (h.offset_ms || 0) / 1000 - 1.5);
     const go = () => { v.currentTime = at; v.play().catch(() => {}); };
     if (v.readyState >= 1) go(); else v.addEventListener('loadedmetadata', go, { once: true });
-    $('now').innerHTML = `Playing <b>${esc(t.title)}</b> from ${fmt(h.offset_ms)} · slide ${h.slide + 1}`;
+    $('now').innerHTML = `Playing <b>${esc(t.title)}</b>, take ${t.take}, from ${fmt(h.offset_ms)} · slide ${h.slide + 1}`;
   }
 
   async function search(e) {
@@ -105,7 +105,7 @@
     const q = $('q').value.trim();
     if (!q) return;
     const u = new URLSearchParams({ q });
-    if ($('talk').value) u.set('talk', $('talk').value);
+    if ($('talk').value) u.set('take', $('talk').value);
     const res = await (await fetch(`/api/search?${u}`)).json();
     $('meta').textContent = `${res.total} match${res.total === 1 ? '' : 'es'} · ${res.engine}`;
     const ol = $('hits');
@@ -115,10 +115,10 @@
       const li = document.createElement('li');
       const b = document.createElement('button');
       b.className = 'hit';
-      const t = talks[h.talk_id];
+      const t = talks[h.take_id];
       const when = h.offset_ms != null ? `${fmt(h.offset_ms)} into the recording` : new Date(h.spoken_at).toLocaleTimeString();
       b.innerHTML = `<div class="t">${h.highlight ? safeMark(h.highlight) : esc(h.text)}</div>
-        <div class="w">${esc(t ? t.title : h.talk_title || h.talk_id)} · slide ${h.slide + 1}${h.slide_title ? ' “' + esc(h.slide_title) + '”' : ''} · ${when}</div>`;
+        <div class="w">${esc(t ? t.title : h.talk_title || h.talk_id)} · take ${h.take} · slide ${h.slide + 1}${h.slide_title ? ' “' + esc(h.slide_title) + '”' : ''} · ${when}</div>`;
       b.addEventListener('click', () => play(h));
       li.appendChild(b);
       ol.appendChild(li);

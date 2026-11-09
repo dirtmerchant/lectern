@@ -222,6 +222,11 @@
           getSlide(live).then((s) => { $('announce').textContent = `Slide ${live + 1} of ${total}. ${slideTitle(s)}`; });
           if (prefs.vibrate && navigator.vibrate) navigator.vibrate(60);
         }
+      } else if (m.t === 'take') {
+        // The speaker started a new take: start the captions over.
+        log.replaceChildren(); interimEl = null; interimText = ''; lastSlideMark = null; seenFinal.clear();
+        $('find-results').hidden = true;
+        $('announce').textContent = 'The speaker restarted. Captions start over.';
       } else if (m.t === 'caption') {
         if (m.final) { interimText = ''; addFinal(m); } else interimText = m.text;
         renderInterim();
