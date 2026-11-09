@@ -2,3 +2,4 @@
 __pycache__/
 *.pyc
 .talk-local/
+*.pdf
