@@ -1,0 +1,24 @@
+# Local Elasticsearch for lectern's caption archive.
+#   docker compose -f elasticsearch/compose.yaml up -d
+# Single node, bound to localhost only, data kept in a named volume so the
+# archive survives restarts. Security is off because it never leaves this laptop;
+# turn it on before exposing it anywhere else.
+services:
+  elasticsearch:
+    image: elasticsearch:9.5.3
+    container_name: lectern-es
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+    ports:
+      - "127.0.0.1:9200:9200"
+    volumes:
+      - lectern-es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs localhost:9200/_cluster/health || exit 1"]
+      interval: 5s
+      retries: 30
+    restart: unless-stopped
+volumes:
+  lectern-es-data:

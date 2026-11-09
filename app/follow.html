@@ -82,8 +82,17 @@
   <section id="captions" class="captions" aria-label="Live captions" tabindex="-1">
     <div class="cap-head">
       <span class="cap-label">Live captions</span>
-      <a id="download" class="cap-dl" href="/f/transcript.txt" download>Save transcript</a>
+      <span class="cap-actions">
+        <button id="find-btn" class="link-btn" aria-expanded="false" aria-controls="find">Search</button>
+        <a id="download" class="cap-dl" href="/f/transcript.txt" download>Save transcript</a>
+      </span>
     </div>
+    <form id="find" class="find" role="search" hidden>
+      <label for="find-q" class="sr-only">Search what's been said</label>
+      <input id="find-q" type="search" placeholder="Search what's been said" autocomplete="off">
+      <button class="btn">Find</button>
+    </form>
+    <ol id="find-results" class="find-results" hidden aria-live="polite"></ol>
     <div id="cap-log" class="cap-log" role="log" aria-live="off" aria-relevant="additions"></div>
     <button id="cap-latest" class="btn cap-latest" hidden>↓ Latest</button>
     <p id="cap-off" class="cap-off" hidden>Captions are off for this talk.</p>

@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lectern archive</title>
+<link rel="stylesheet" href="/app/fonts/fonts.css">
+<style>
+  :root { --bg: #0b0e12; --panel: #151a21; --line: #2a313a; --text: #e8e6e1; --dim: #8a949e; --accent: #e8833a; --ok: #4ade80; color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+  header { padding: 20px 24px 12px; border-bottom: 1px solid var(--line); background: var(--panel); }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  .sub { color: var(--dim); font-size: 14px; }
+  .sub b { color: var(--ok); font-weight: 600; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 20px; padding: 20px 24px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 200px) auto; gap: 8px; margin-bottom: 12px; }
+  input[type=search] { min-width: 0; min-height: 48px; font: inherit; font-size: 18px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: #0f1318; color: var(--text); }
+  select { min-width: 0; text-overflow: ellipsis; }
+  select, button { min-height: 48px; font: inherit; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 0 12px; }
+  button { background: var(--accent); color: #000; border: 0; font-weight: 700; cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .meta { color: var(--dim); font-size: 13px; margin: 6px 0 10px; font-family: 'JetBrains Mono', monospace; }
+  ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+  li button.hit { all: unset; display: block; width: 100%; box-sizing: border-box; padding: 12px 14px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line); cursor: pointer; }
+  li button.hit:hover, li button.hit:focus-visible { border-color: var(--accent); }
+  .hit .t { font-size: 17px; line-height: 1.45; }
+  .hit .w { font-size: 13px; color: var(--dim); margin-top: 4px; font-family: 'JetBrains Mono', monospace; }
+  mark { background: color-mix(in srgb, var(--accent) 35%, transparent); color: #fff; border-radius: 3px; padding: 0 2px; }
+  .player { position: sticky; top: 20px; align-self: start; }
+  video { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 10px; }
+  video::cue { font-size: 1.1em; background: rgba(0,0,0,.8); }
+  .now { margin-top: 10px; font-size: 15px; color: var(--dim); }
+  .empty { color: var(--dim); padding: 20px 0; }
+  .links { margin-top: 10px; display: flex; gap: 14px; font-size: 14px; }
+  .links a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>lectern archive</h1>
+  <div class="sub" id="sub">Search everything said in every captioned talk, then jump to that moment.</div>
+</header>
+<main>
+  <section aria-label="Search">
+    <form id="form" role="search">
+      <label class="sr" for="q" hidden>Search captions</label>
+      <input id="q" type="search" placeholder="What was said? e.g. curb cut" autocomplete="off" autofocus>
+      <select id="talk" aria-label="Talk"><option value="">All talks</option></select>
+      <button>Search</button>
+    </form>
+    <div class="meta" id="meta"></div>
+    <ol id="hits"></ol>
+  </section>
+  <section class="player" aria-label="Recording">
+    <video id="video" controls playsinline crossorigin="anonymous"></video>
+    <div class="now" id="now">Pick a result to play the recording from that moment, with captions.</div>
+    <div class="links" id="links"></div>
+  </section>
+</main>
+<script>
+(async () => {
+  const $ = (id) => document.getElementById(id);
+  const fmt = (ms) => { const s = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  // Highlights come from Elasticsearch: escape everything, then restore only <mark>.
+  const safeMark = (h) => esc(h).replace(/&lt;(\/?)mark&gt;/g, '<$1mark>');
+
+  const info = await (await fetch('/api/talks')).json();
+  const talks = Object.fromEntries(info.talks.map((t) => [t.talk_id, t]));
+  info.talks.forEach((t) => {
+    const o = document.createElement('option');
+    o.value = t.talk_id;
+    o.textContent = `${t.title} · ${new Date(t.started_at).toLocaleDateString()}`;
+    $('talk').appendChild(o);
+  });
+  $('sub').innerHTML = `${info.talks.length} talk${info.talks.length === 1 ? '' : 's'} archived · search: ` +
+    (info.es === 'connected' ? '<b>Elasticsearch</b>' : esc(info.es === 'off' ? 'this talk only (no Elasticsearch)' : 'Elasticsearch ' + info.es));
+
+  let loaded = null;
+  function play(h) {
+    const t = talks[h.talk_id];
+    if (!t || !t.recording) { $('now').textContent = 'No recording for this talk on this laptop. The caption is still saved.'; return; }
+    const src = `/rec/${encodeURIComponent(h.talk_id)}/${encodeURIComponent(t.recording)}`;
+    const v = $('video');
+    if (loaded !== src) {
+      loaded = src;
+      v.innerHTML = '';
+      v.src = src;
+      const tr = document.createElement('track');
+      tr.kind = 'captions'; tr.label = 'Live captions'; tr.srclang = 'en'; tr.default = true;
+      tr.src = src.replace(/\.webm$/, '.vtt');
+      v.appendChild(tr);
+      $('links').innerHTML = `<a href="${src}" download>Download video</a><a href="${tr.src}" download>Download captions (.vtt)</a>`;
+    }
+    const at = Math.max(0, (h.offset_ms || 0) / 1000 - 1.5);
+    const go = () => { v.currentTime = at; v.play().catch(() => {}); };
+    if (v.readyState >= 1) go(); else v.addEventListener('loadedmetadata', go, { once: true });
+    $('now').innerHTML = `Playing <b>${esc(t.title)}</b> from ${fmt(h.offset_ms)} · slide ${h.slide + 1}`;
+  }
+
+  async function search(e) {
+    if (e) e.preventDefault();
+    const q = $('q').value.trim();
+    if (!q) return;
+    const u = new URLSearchParams({ q });
+    if ($('talk').value) u.set('talk', $('talk').value);
+    const res = await (await fetch(`/api/search?${u}`)).json();
+    $('meta').textContent = `${res.total} match${res.total === 1 ? '' : 'es'} · ${res.engine}`;
+    const ol = $('hits');
+    ol.innerHTML = '';
+    if (!res.hits.length) { ol.innerHTML = '<li class="empty">Nothing found. Try fewer words.</li>'; return; }
+    res.hits.forEach((h) => {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      b.className = 'hit';
+      const t = talks[h.talk_id];
+      const when = h.offset_ms != null ? `${fmt(h.offset_ms)} into the recording` : new Date(h.spoken_at).toLocaleTimeString();
+      b.innerHTML = `<div class="t">${h.highlight ? safeMark(h.highlight) : esc(h.text)}</div>
+        <div class="w">${esc(t ? t.title : h.talk_title || h.talk_id)} · slide ${h.slide + 1}${h.slide_title ? ' “' + esc(h.slide_title) + '”' : ''} · ${when}</div>`;
+      b.addEventListener('click', () => play(h));
+      li.appendChild(b);
+      ol.appendChild(li);
+    });
+  }
+  $('form').addEventListener('submit', search);
+  const initial = new URLSearchParams(location.search).get('q');
+  if (initial) { $('q').value = initial; search(); }
+})();
+</script>
+</body>
+</html>

@@ -177,6 +177,31 @@
     } catch (e) {}
   }
 
+  // ---------- search what's been said (this talk only) ----------
+  const escH = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  $('find-btn').hidden = !info.captions;
+  $('find-btn').addEventListener('click', () => {
+    const open = $('find').hidden;
+    $('find').hidden = !open; $('find-btn').setAttribute('aria-expanded', String(open));
+    if (open) $('find-q').focus(); else $('find-results').hidden = true;
+  });
+  $('find').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const q = $('find-q').value.trim();
+    const ol = $('find-results');
+    if (!q) { ol.hidden = true; return; }
+    let res;
+    try { res = await (await fetch(`/f/search?q=${encodeURIComponent(q)}`)).json(); } catch (err) { return; }
+    ol.hidden = false;
+    ol.innerHTML = res.hits.length ? '' : '<li>Nothing found yet.</li>';
+    res.hits.forEach((h) => {
+      const li = document.createElement('li');
+      const text = h.highlight ? escH(h.highlight).replace(/&lt;(\/?)mark&gt;/g, '<$1mark>') : escH(h.text);
+      li.innerHTML = `${text}<span class="w">Slide ${h.slide + 1} · ${new Date(h.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>`;
+      ol.appendChild(li);
+    });
+  });
+
   // ---------- live stream ----------
   function connect() {
     const es = new EventSource('/f/events');

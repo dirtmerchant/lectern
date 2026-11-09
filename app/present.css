@@ -103,3 +103,16 @@ html, body { margin: 0; height: 100%; background: #000; color: var(--text);
 #sp-captions.live .c-label { color: var(--text); }
 #sp-captions.off .c-label, #sp-captions.error .c-label { color: var(--orange); }
 #sp-captions .c-text { font-size: 17px; color: #c9d0d6; min-height: 1.4em; max-height: 2.9em; overflow: hidden; line-height: 1.4; }
+
+/* ---------- Camera bubble on the slides ---------- */
+#cam { position: absolute; top: 3.5vh; right: 2.2vw; width: 17vw; aspect-ratio: 1; border-radius: 50%; overflow: hidden;
+  border: .35vw solid #fff; box-shadow: 0 .8vw 2.4vw rgba(0,0,0,.5); background: #111; opacity: 0; transform: scale(.92);
+  transition: opacity 220ms, transform 220ms; pointer-events: none; }
+#cam.on { opacity: 1; transform: none; }
+#cam video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); display: block; }
+
+/* ---------- Archive + recording status (speaker) ---------- */
+#sp-captions .c-archive { display: flex; justify-content: space-between; gap: 12px; font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--dim); border-top: 1px solid var(--line); padding-top: 6px; }
+#sp-captions .a-rec.on { color: var(--red); font-weight: 700; }
+#sp-captions .a-es.ok { color: var(--green); }
+#sp-captions .a-es.bad { color: var(--orange); }

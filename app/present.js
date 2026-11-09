@@ -124,6 +124,22 @@
     }
     if (captionsCfg.enabled) $('cc').hidden = false;
 
+    // Speaker camera bubble on the slides (W). Lands in the recording, and
+    // lets people who lip-read see the speaker's face on the big screen.
+    let cam = false, camStream = null;
+    async function setCam(on) {
+      if (on && !camStream) {
+        try {
+          camStream = await navigator.mediaDevices.getUserMedia({ video: { width: 720, height: 720, facingMode: 'user' }, audio: false });
+          $('cam').querySelector('video').srcObject = camStream;
+        } catch (e) { send({ t: 'error', msg: `Camera unavailable: ${e.message}` }); on = false; }
+      }
+      cam = !!on;
+      $('cam').hidden = false;
+      $('cam').classList.toggle('on', cam);
+      publish();
+    }
+
     if (follow && follow.url) {
       $('qr').hidden = false;
       $('qr').querySelector('.qr-code').innerHTML = qrSvg(follow.url);
@@ -153,7 +169,7 @@
       if (!ready) return;
       const v = curVideo();
       send({
-        t: 'state', index, total: slides.length, id: slides[index].id, black, qr, cc,
+        t: 'state', index, total: slides.length, id: slides[index].id, black, qr, cc, cam,
         clip: v ? { phase: clipPhase(v), time: v.currentTime || 0, dur: v.duration || 0 } : null,
       });
     }
@@ -206,6 +222,7 @@
         case 'black': return setBlack(!black);
         case 'qr': setQr(!qr); return publish();
         case 'cc': setCc(!cc); renderCc(); return publish();
+        case 'cam': return setCam(!cam);
         case 'clipToggle': return clipToggle();
         case 'clipRestart': return clipRestart();
         case 'hello': return publish();
@@ -236,6 +253,7 @@
         if (m.index !== index) show(m.index);
         if (m.black) setBlack(true);
         if (typeof m.cc === 'boolean') setCc(m.cc);
+        if (m.cam) setCam(true);
         goLive();
       }
     };
@@ -286,7 +304,7 @@
     // ----- live captions (speech → text in this window, relayed to phones) -----
     // Chrome's Web Speech API. On-device recognition is used when Chrome has
     // the language model; otherwise Chrome sends audio to its cloud service.
-    const cap = { on: false, rec: null, session: 0, mode: '', lastSent: 0, pending: null, last: '' };
+    const cap = { on: false, rec: null, session: 0, mode: '', lastSent: 0, pending: null, last: '', first: {} };
     function capStatus(cls, label) {
       const el = $('sp-captions');
       el.className = cls;
@@ -316,7 +334,8 @@
           const r = e.results[i];
           const text = r[0].transcript.trim();
           const id = `${cap.session}-${i}`;
-          if (r.isFinal) { cap.pending = null; capSend(id, text, true); }
+          if (!cap.first[id]) cap.first[id] = Date.now() - 300; // when this phrase began (about)
+          if (r.isFinal) { cap.pending = null; capSend(id, text, true); delete cap.first[id]; }
           else capInterim(id, text);
         }
       };
@@ -338,7 +357,7 @@
       cap.lastSent = performance.now();
       if (final && text) { cap.last = text; capShow(text); }
       else if (!final) capShow((cap.last ? cap.last + ' ' : '') + text);
-      send({ t: 'caption', id, text, final });
+      send({ t: 'caption', id, text, final, started: cap.first[id] || Date.now() });
     }
     function capInterim(id, text) {
       // At most ~4 interim updates a second so phones on bad wifi keep up.
@@ -354,6 +373,56 @@
       else capStart();
     }
     if (captionsCfg.enabled) { $('sp-captions').hidden = false; capStart(); }
+
+    // ----- recording (V): projector window + mic, saved on the laptop -----
+    // The screen to record is picked automatically by present.sh
+    // (--auto-select-desktop-capture-source); otherwise Chrome asks once.
+    const recState = { rec: null, chain: Promise.resolve(), started: 0, file: null };
+    async function recStart() {
+      let display, mic;
+      try {
+        display = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 30 }, audio: false, selfBrowserSurface: 'exclude' });
+        mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      } catch (e) {
+        if (display) display.getTracks().forEach((t) => t.stop());
+        lastError = `Recording not started: ${e.message}`; tick(); return;
+      }
+      const stream = new MediaStream([...display.getVideoTracks(), ...mic.getAudioTracks()]);
+      const mime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find((m) => MediaRecorder.isTypeSupported(m));
+      const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 5e6, audioBitsPerSecond: 128e3 });
+      rec.ondataavailable = (e) => {
+        if (!e.data.size) return;
+        // Chunks go up strictly in order, every 2s, so a crash loses at most 2s.
+        recState.chain = recState.chain.then(() => fetch('/rec/chunk', { method: 'POST', body: e.data })).catch(() => {});
+      };
+      rec.onstop = () => {
+        stream.getTracks().forEach((t) => t.stop());
+        recState.chain = recState.chain.then(() => fetch('/rec/stop', { method: 'POST' })).catch(() => {});
+        recState.rec = null; renderRec();
+      };
+      display.getVideoTracks()[0].addEventListener('ended', () => { if (rec.state !== 'inactive') rec.stop(); });
+      rec.start(2000);
+      recState.started = Date.now();
+      recState.rec = rec;
+      recState.chain = fetch('/rec/start', { method: 'POST', body: JSON.stringify({ at: recState.started }) })
+        .then((r) => r.json()).then((d) => { recState.file = d.file; renderRec(); }).catch(() => {});
+      renderRec();
+    }
+    function recToggle() { if (recState.rec) recState.rec.stop(); else recStart(); }
+    let archive = null;
+    function renderRec() {
+      const a = $('sp-captions').querySelector('.a-rec');
+      if (recState.rec) { a.textContent = `● REC ${fmt((Date.now() - recState.started) / 1000)} · V stops`; a.classList.add('on'); }
+      else { a.textContent = recState.file ? `Saved ${recState.file} · V records again` : 'V records the talk'; a.classList.remove('on'); }
+      const es = $('sp-captions').querySelector('.a-es');
+      if (archive) {
+        const ok = archive.es === 'connected';
+        es.textContent = `${archive.saved} captions saved · ${ok ? 'Elasticsearch ✓' : archive.es === 'off' ? 'disk only' : 'Elasticsearch: ' + archive.es}`;
+        es.className = 'a-es ' + (ok ? 'ok' : archive.es === 'off' ? '' : 'bad');
+      }
+    }
+    setInterval(() => { if (recState.rec) renderRec(); }, 1000);
+    if (captionsCfg.enabled) $('sp-captions').hidden = false;
 
     // ----- timer (survives reloads) -----
     let timer = { start: null, acc: 0 };
@@ -490,6 +559,7 @@
       if (m.t === 'state') { state = m; lastSeen = Date.now(); render(); }
       if (m.t === 'error') { lastError = m.msg; tick(); }
       if (m.t === 'followers') { followers = m.count; renderFollow(); }
+      if (m.t === 'archive') { archive = m; renderRec(); }
     };
     es.onopen = () => send({ t: 'cmd', cmd: 'hello' });
 
@@ -498,6 +568,7 @@
       speaker: true,
       timer: toggleTimer,
       mic: capToggle,
+      record: recToggle,
       reset: resetTimer,
       size: (d) => { size = Math.max(16, Math.min(40, size + d)); applySize(); try { localStorage.setItem('scriptSize', size); } catch (e) {} },
     });
@@ -526,6 +597,8 @@
       else if (k === 'q' || k === 'Q') run('qr');
       else if (k === 'c' || k === 'C') run('cc');
       else if ((k === 'm' || k === 'M') && opt.mic) opt.mic();
+      else if ((k === 'v' || k === 'V') && opt.record) opt.record();
+      else if (k === 'w' || k === 'W') run('cam');
       else if (k === 'k' || k === 'K') run('clipToggle');
       else if (k === 'j' || k === 'J') run('clipRestart');
       else if ((k === 't' || k === 'T') && opt.timer) opt.timer();

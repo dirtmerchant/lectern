@@ -19,6 +19,8 @@
 #   PRESENT_FOLLOW_PORT=<p>  phone port on your network (default 8766, 0 turns it off)
 #   PRESENT_FOLLOW_HOST=<ip> address to put in the QR code (default: auto)
 #   PRESENT_CHROME=<path>    Chrome binary
+#   LECTERN_ES=<url>         Elasticsearch for the caption archive
+#                            (default: talk.json "archive", else http://127.0.0.1:9200 if it's running)
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
@@ -95,6 +97,18 @@ IFS='|' read -r title counts scriptinfo capinfo followinfo <<<"${summary#OK }"
 ok "$title: $counts, $scriptinfo"
 ok "$capinfo"
 [[ "$followinfo" == off ]] && FOLLOW_PORT=0
+
+# --- caption archive ----------------------------------------------------------------
+if [[ -z "${LECTERN_ES:-}" ]] && ! grep -q '"elasticsearch"' "$TALK/talk.json" \
+   && curl -sf -m 2 http://127.0.0.1:9200/ >/dev/null 2>&1; then
+  export LECTERN_ES=http://127.0.0.1:9200
+fi
+if [[ -n "${LECTERN_ES:-}" ]]; then
+  if curl -sf -m 2 "$LECTERN_ES/" >/dev/null 2>&1; then ok "caption archive: disk + Elasticsearch at $LECTERN_ES"
+  else warn "Elasticsearch at $LECTERN_ES not answering: captions go to disk and catch up when it's back"; fi
+else
+  ok "caption archive: disk only (start Elasticsearch: docker compose -f elasticsearch/compose.yaml up -d)"
+fi
 
 # --- ports --------------------------------------------------------------------
 busy() { lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1; }
@@ -188,20 +202,26 @@ FLAGS=(--no-first-run --no-default-browser-check --disable-features=Translate,Me
        --autoplay-policy=no-user-gesture-required --disable-sync --disable-extensions)
 mkdir -p "$PROFILES/audience" "$PROFILES/speaker"
 
-"$CHROME" "${FLAGS[@]}" --user-data-dir="$PROFILES/audience" \
+# Both windows only ever load this local app, so auto-allow camera/mic prompts
+# (camera bubble, captions mic) instead of showing them in front of the audience.
+"$CHROME" "${FLAGS[@]}" --user-data-dir="$PROFILES/audience" --use-fake-ui-for-media-stream \
   --window-position="$AU_POS" --window-size="$AU_SIZE" ${AU_FS[@]+"${AU_FS[@]}"} \
   --app="$([[ $MODE == stage ]] && echo "${URL%index.html}stage.html" || echo "$URL?view=audience")" >/dev/null 2>&1 & pids+=($!)
 sleep 1.5
 # Speaker opens last so it has keyboard focus: the clicker drives it.
 # The speaker window only ever loads this local page; auto-allow its mic so
 # captions start without a permission prompt in front of the audience.
+# The recorder (V) captures the projector window, picked by its title.
+CAPTURE="$([[ $MODE == stage ]] && echo "lectern stage" || echo "Audience")"
 "$CHROME" "${FLAGS[@]}" --user-data-dir="$PROFILES/speaker" --use-fake-ui-for-media-stream \
+  --auto-select-desktop-capture-source="$CAPTURE" \
   --window-position="$SP_POS" --window-size="$SP_SIZE" \
   --app="$URL?view=speaker" >/dev/null 2>&1 & sp_pid=$!; pids+=($sp_pid)
 
 echo
 echo "${bold}Presenting.${rst} Keep the speaker window focused; the clicker drives it."
 echo "  Q shows the QR code · C captions on the projector · M pauses the captions mic"
+echo "  V records the talk · W camera bubble on the slides · archive: http://127.0.0.1:$PORT/archive"
 echo "  T starts the timer · B blacks the projector · close the speaker window (or Ctrl-C) to quit"
 echo "  Before going on: turn on Do Not Disturb, quit Slack/Mail, plug in power."
 

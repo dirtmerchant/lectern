@@ -37,7 +37,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from mimetypes import guess_type
-from urllib.parse import unquote, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 APP = os.path.realpath(sys.argv[1])
 TALK_DIR = os.path.realpath(sys.argv[2])
@@ -108,6 +108,9 @@ def load_talk(talk_dir):
     caps = cfg.get("captions", True)
     if isinstance(caps, bool):
         caps = {"enabled": caps}
+    arch = cfg.get("archive") or {}
+    for s in slides:
+        s["title"] = slide_title(s)
     return {
         "title": cfg.get("title") or "Untitled talk",
         "talkMinutes": float(cfg.get("talkMinutes", 20)),
@@ -127,7 +130,17 @@ def load_talk(talk_dir):
             "onProjector": bool(caps.get("onProjector", False)),
         },
         "remarks": script_sections(script) if script else {},
+        # Elasticsearch for the caption archive: env wins over talk.json; none = local log only.
+        "elasticsearch": os.environ.get("LECTERN_ES") or arch.get("elasticsearch"),
     }
+
+
+def slide_title(s):
+    if s["kind"] == "md":
+        m = re.search(r"^#{1,3}\s+(.+)$", s["src"], re.M)
+        return m.group(1).strip() if m else ""
+    m = re.search(r"<h[1-3]\b[^>]*>([\s\S]*?)</h[1-3]>", s["src"], re.I)
+    return strip_tags(m.group(1)) if m else ""
 
 
 def script_sections(md):
@@ -247,9 +260,17 @@ public_listeners = set()
 last_state = None        # raw JSON, replayed to presenter windows that reconnect
 public_state = None      # filtered dict, replayed to phones
 furthest = 0             # highest slide index the speaker has shown
-transcript = []          # final captions: {id, text, slide, at}
 interim = None           # the caption line still being spoken
-MAX_TRANSCRIPT = 20000
+
+sys.path.insert(0, APP)
+from archive import Archive  # noqa: E402
+
+ARCHIVE = Archive(TALK["root"], TALK["title"], TALK["slides"], TALK["captions"]["lang"],
+                  es_url=TALK["elasticsearch"])
+# Final captions, resumed from the durable log if this talk ran earlier today.
+transcript = [{"id": c["caption_id"], "text": c["text"], "slide": c["slide"], "at": c["spoken_at"]}
+              for c in ARCHIVE.captions]
+rec = {"file": None, "fh": None}  # the recording in progress
 
 
 def lan_ip():
@@ -302,14 +323,20 @@ def on_caption(msg):
     final = bool(msg.get("final"))
     with lock:
         slide = public_state["index"] if public_state else 0
-        entry = {"id": cid, "text": text, "slide": slide, "at": int(time.time() * 1000)}
+        now = int(time.time() * 1000)
+        entry = {"id": cid, "text": text, "slide": slide, "at": now}
         if final:
             interim = None
             if text:
                 transcript.append(entry)
-                del transcript[:-MAX_TRANSCRIPT]
         else:
             interim = entry
+    if final and text:
+        try:
+            started = int(msg.get("started") or now)
+        except (TypeError, ValueError):
+            started = now
+        ARCHIVE.add_caption(text, cid, slide, now, started_at=min(started, now))
     pub = json.dumps({"t": "caption", "final": final, **entry})
     broadcast(public_listeners, pub)
     return pub
@@ -327,15 +354,50 @@ def transcript_text():
     return "\n".join(out).strip() + "\n"
 
 
-def follower_count_loop():
-    last = -1
+def archive_status():
+    return {"t": "archive", "es": ARCHIVE.es_state, "saved": len(ARCHIVE.captions),
+            "talk_id": ARCHIVE.talk_id, "recording": rec["file"]}
+
+
+def status_loop():
+    last = None
     while True:
         with lock:
             n = len(public_listeners)
-        if n != last:
-            last = n
-            broadcast(private_listeners, json.dumps({"t": "followers", "count": n}))
+        cur = (n, json.dumps(archive_status()))
+        if cur != last:
+            if not last or cur[0] != last[0]:
+                broadcast(private_listeners, json.dumps({"t": "followers", "count": n}))
+            broadcast(private_listeners, cur[1])
+            last = cur
         time.sleep(1)
+
+
+def finish_recording():
+    """Close the file, write the synced captions next to it, fix seeking with ffmpeg if present."""
+    with lock:
+        fh, name = rec["fh"], rec["file"]
+        rec["fh"], rec["file"] = None, None
+    if not fh:
+        return None
+    fh.close()
+    path = os.path.join(ARCHIVE.dir, name)
+    with open(os.path.splitext(path)[0] + ".vtt", "w", encoding="utf-8") as f:
+        f.write(ARCHIVE.vtt())
+    def remux():
+        import shutil
+        import subprocess
+        if not shutil.which("ffmpeg"):
+            return
+        tmp = path + ".tmp.webm"
+        r = subprocess.run(["ffmpeg", "-y", "-loglevel", "error", "-i", path, "-c", "copy", tmp],
+                           capture_output=True)
+        if r.returncode == 0:
+            os.replace(tmp, path)  # MediaRecorder files have no seek index; this adds one
+        elif os.path.exists(tmp):
+            os.remove(tmp)
+    threading.Thread(target=remux, daemon=True).start()
+    return name
 
 
 # ---------------------------------------------------------------------------
@@ -456,6 +518,7 @@ class Presenter(Base):
             with lock:
                 replay = [last_state] if last_state else []
                 replay.append(json.dumps({"t": "followers", "count": len(public_listeners)}))
+            replay.append(json.dumps(archive_status()))
             self.stream(private_listeners, replay)
         elif p == "/api/deck":
             self.send_json({
@@ -464,7 +527,28 @@ class Presenter(Base):
                 "follow": {"url": FOLLOW_URL, "qrOnSlides": TALK["follow"]["qrOnSlides"],
                            "shareScript": TALK["follow"]["shareScript"]} if FOLLOW_ON else None,
                 "captions": TALK["captions"],
+                "talkId": ARCHIVE.talk_id,
             })
+        elif p == "/archive":
+            self.send_file(os.path.join(APP, "archive.html"))
+        elif p == "/api/search":
+            qs = parse_qs(urlsplit(self.path).query)
+            q = (qs.get("q") or [""])[0].strip()[:200]
+            talk = (qs.get("talk") or [None])[0]
+            self.send_json(ARCHIVE.search(q, talk) if q else {"hits": [], "total": 0, "engine": "", "talks": []})
+        elif p == "/api/talks":
+            self.send_json({"current": ARCHIVE.talk_id, "es": ARCHIVE.es_state, "talks": ARCHIVE.talks()})
+        elif p == "/api/vtt":
+            body = ARCHIVE.vtt().encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/vtt; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+        elif p.startswith("/rec/"):
+            # /rec/<talk_id>/<file>: recordings kept under <talk>/.lectern/
+            self.send_file(inside(os.path.join(TALK["root"], ".lectern"), p[5:]))
         elif p.startswith("/app/"):
             self.send_file(inside(APP, p[5:]))
         elif p.startswith("/talk/"):
@@ -475,7 +559,31 @@ class Presenter(Base):
     do_HEAD = do_GET
 
     def do_POST(self):
-        if self.path_only() != "/send":
+        p = self.path_only()
+        if p == "/rec/start":
+            body = json.loads(self.rfile.read(min(int(self.headers.get("Content-Length", "0") or 0), 4096)) or b"{}")
+            finish_recording()
+            name = time.strftime("recording-%H%M%S.webm")
+            at = int(body.get("at") or time.time() * 1000)
+            with lock:
+                rec["file"], rec["fh"] = name, open(os.path.join(ARCHIVE.dir, name), "ab")
+            ARCHIVE.recording_started(at, name)
+            return self.send_json({"file": name, "talk_id": ARCHIVE.talk_id})
+        if p == "/rec/chunk":
+            n = int(self.headers.get("Content-Length", "0") or 0)
+            if n > 64 * 1024 * 1024:
+                return self.send_json({"error": "chunk too big"}, 413)
+            data = self.rfile.read(n)
+            with lock:
+                fh = rec["fh"]
+                if fh:
+                    fh.write(data)
+                    fh.flush()
+            return self.send_json({"ok": bool(fh)}, 200 if fh else 409)
+        if p == "/rec/stop":
+            self.rfile.read(int(self.headers.get("Content-Length", "0") or 0))
+            return self.send_json({"file": finish_recording()})
+        if p != "/send":
             return self.not_found()
         n = int(self.headers.get("Content-Length", "0") or 0)
         raw = self.rfile.read(min(n, 65536)).decode("utf-8", "replace")
@@ -516,6 +624,13 @@ class Follow(Base):
             with lock:
                 data = {"final": list(transcript), "interim": interim}
             self.send_json(data)
+        elif p == "/f/search":
+            # Attendees can search what's been said in this talk (never other talks).
+            q = (parse_qs(urlsplit(self.path).query).get("q") or [""])[0].strip()[:200]
+            res = ARCHIVE.search(q, ARCHIVE.talk_id, size=20) if q else {"hits": [], "total": 0}
+            hits = [{"text": h["text"], "highlight": h.get("highlight"), "slide": h["slide"], "at": h["spoken_at"]}
+                    for h in res["hits"]]
+            self.send_json({"total": res.get("total", 0), "engine": res.get("engine", ""), "hits": hits})
         elif p == "/f/transcript.txt":
             body = transcript_text().encode()
             self.send_response(200)
@@ -567,8 +682,11 @@ def main():
     servers = [Server(("127.0.0.1", PORT), Presenter)]
     if FOLLOW_ON:
         servers.append(Server(("0.0.0.0", FOLLOW_PORT), Follow))
-        threading.Thread(target=follower_count_loop, daemon=True).start()
+    threading.Thread(target=status_loop, daemon=True).start()
     print(f"lectern: {TALK['title']} · {len(TALK['slides'])} slides", flush=True)
+    print(f"lectern: captions saved to {os.path.relpath(ARCHIVE.dir)}"
+          + (f" and Elasticsearch at {TALK['elasticsearch']}" if TALK["elasticsearch"] else " (no Elasticsearch configured)"),
+          flush=True)
     if FOLLOW_URL:
         print(f"lectern: follow along at {FOLLOW_URL}", flush=True)
     for s in servers[1:]:
