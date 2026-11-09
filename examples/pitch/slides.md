@@ -3,7 +3,7 @@
 Every talk, captioned, in your hand.
 
 Note:
-Scan the QR code now. Judges' phones join live; the count shows on the speaker view.
+I'm a parent of two deaf children. I've seen firsthand how miserable and inaccessible experiences like conferences can be for people with disabilities. It's a wall of sound. So I built lectern.
 
 ---
 
@@ -16,7 +16,7 @@ A conference talk is a wall of sound.
 - Slides alone tell half the story
 
 Note:
-Tell this in your own words. Why this matters to you.
+Here's how it works for the audience. You scan the QR code on the screen. No app, no account. On your phone you get the current slide and live captions of what I'm saying right now. You can see them appearing on the right as I talk.
 
 ---
 
@@ -28,7 +28,11 @@ Tell this in your own words. Why this matters to you.
 - **Scroll back** and **save the transcript**
 
 Note:
-Demo the phone: change caption size, switch to large text, go back a slide, Back to live.
+Every attendee picks their own settings.
+
+[Phone: Aa → XL → High contrast → Done]
+
+Bigger captions, high contrast. You can switch the slide to large text for low vision or a screen reader. Scroll back if you missed something, jump back to live, and save the whole transcript after the talk.
 
 ---
 
@@ -40,6 +44,13 @@ Built for deaf and hard-of-hearing attendees. Useful for everyone:
 - Non-native speakers who read faster than they listen
 - Anyone taking notes, or who stepped out for a minute
 - The speaker, who gets a transcript for free
+
+Note:
+This is the curb cut effect. Curb cuts were built for wheelchairs, and now everyone with a stroller uses them. lectern was built for deaf attendees, but it helps the back row, non-native speakers, note-takers, anyone who stepped out. And my camera is on the slides, which helps people who read lips.
+
+[Press C]
+
+The speaker can put captions on the projector for the whole room too.
 
 ---
 
@@ -53,7 +64,9 @@ Built for deaf and hard-of-hearing attendees. Useful for everyone:
 - Any Markdown deck: `./present.sh init my-talk`
 
 Note:
-Security model: two listeners. Presenter on localhost with full control; phones on a separate read-only port.
+Every caption is saved to Elasticsearch, timestamped against the recording. After the talk you can search anything that was said and jump straight to that moment, with captions. And search understands speech-recognition mistakes, like 'elastic search' as two words. It all runs on the speaker's laptop. Phones connect to a read-only page, and speaker notes never leave the laptop.
+
+[Press → twice: skip slide 6]
 
 ---
 
@@ -62,6 +75,9 @@ Security model: two listeners. Presenter on localhost with full control; phones 
 - **Before:** a two-window presenter I wrote for my ArgoCon talk
 - **Today:** any deck, live captions, phone follow-along, QR join, accessibility settings, Elasticsearch archive, recording
 - Built with Claude Code, disclosed in the README
+
+Note:
+[Skip this slide: press →]
 
 ---
 
@@ -77,4 +93,6 @@ Security model: two listeners. Presenter on localhost with full control; phones 
 </div>
 
 Note:
-Don't read the URL. Point at the code and let them scan.
+It's open source. Scan the code to grab it. Built today at the Cloud Native Hackathon. Thanks.
+
+[Stop recording]
