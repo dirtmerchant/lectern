@@ -1,0 +1,5 @@
+{
+  "clip-flap":   { "video": "demo/scenario-01-clean.mp4", "poster": "demo/scenario-01-still.png", "script": "fm-flap" },
+  "clip-masked": { "video": "demo/scenario-02-clean.mp4", "poster": "demo/scenario-02-still.png", "script": "fm-masked-outage" },
+  "clip-window": { "video": "demo/scenario-03-clean.mp4", "poster": "demo/scenario-03-still.png", "script": "fm-window-ambush" }
+}

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Presenter</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="present.css">
+</head>
+<body>
+
+<!-- Audience: the projector -->
+<div id="audience" hidden>
+  <div id="stage"></div>
+  <div id="black"></div>
+</div>
+
+<!-- Speaker: the laptop -->
+<div id="speaker" hidden>
+  <header>
+    <div class="where"><span id="sp-num"></span><span id="sp-id"></span></div>
+    <div class="clock"><span id="sp-elapsed">0:00</span><span id="sp-pace"></span></div>
+    <div class="meta"><span id="sp-target"></span><span id="sp-wall"></span></div>
+  </header>
+  <div id="sp-alert" hidden></div>
+  <main>
+    <section class="left">
+      <div class="label">NOW</div>
+      <div id="sp-current" class="preview"></div>
+      <div id="sp-clip" hidden>
+        <div id="sp-clip-text"></div>
+        <div class="bar"><div id="sp-clip-fill"></div></div>
+      </div>
+      <div class="label" id="sp-next-label">NEXT</div>
+      <div id="sp-next" class="preview small"></div>
+    </section>
+    <section class="right">
+      <div id="sp-script"></div>
+      <details id="sp-notes-wrap" open>
+        <summary>Slide notes</summary>
+        <div id="sp-notes"></div>
+      </details>
+    </section>
+  </main>
+  <footer>
+    → / Space / PgDn next (plays a clip first) · ← back · K pause clip · J restart clip · B black screen ·
+    T start/pause timer · R reset timer · number + Enter jump · + / − script size
+    <span id="sp-goto"></span>
+  </footer>
+</div>
+
+<div id="boot">Loading deck…</div>
+<script src="present.js"></script>
+</body>
+</html>
