@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0e12">
+<title>Follow along · lectern</title>
+<link rel="stylesheet" href="/f/fonts/fonts.css">
+<link rel="stylesheet" href="/f/theme.css">
+<link rel="stylesheet" href="/f/follow.css">
+</head>
+<body>
+<a class="skip" href="#captions">Skip to live captions</a>
+
+<header class="bar">
+  <div class="bar-title">
+    <h1 id="title">Connecting…</h1>
+    <div class="bar-sub"><span id="conn" class="conn" role="status">connecting</span><span id="pos"></span></div>
+  </div>
+  <button id="settings-btn" class="icon-btn" aria-expanded="false" aria-controls="settings" aria-label="Display settings">Aa</button>
+</header>
+
+<div id="settings" class="settings" hidden>
+  <fieldset>
+    <legend>Show</legend>
+    <div class="seg" role="radiogroup" aria-label="Layout">
+      <label><input type="radio" name="layout" value="both" checked> Slides + captions</label>
+      <label><input type="radio" name="layout" value="captions"> Captions only</label>
+      <label><input type="radio" name="layout" value="slides"> Slides only</label>
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>Slide style</legend>
+    <div class="seg" role="radiogroup" aria-label="Slide style">
+      <label><input type="radio" name="slidestyle" value="picture" checked> As shown</label>
+      <label><input type="radio" name="slidestyle" value="text"> Large text</label>
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>Caption size</legend>
+    <div class="seg" role="radiogroup" aria-label="Caption size">
+      <label><input type="radio" name="capsize" value="s"> S</label>
+      <label><input type="radio" name="capsize" value="m" checked> M</label>
+      <label><input type="radio" name="capsize" value="l"> L</label>
+      <label><input type="radio" name="capsize" value="xl"> XL</label>
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>Colors</legend>
+    <div class="seg" role="radiogroup" aria-label="Colors">
+      <label><input type="radio" name="colors" value="dark" checked> Dark</label>
+      <label><input type="radio" name="colors" value="light"> Light</label>
+      <label><input type="radio" name="colors" value="contrast"> High contrast</label>
+    </div>
+  </fieldset>
+  <fieldset class="checks">
+    <legend>Options</legend>
+    <label><input type="checkbox" id="opt-interim" checked> Show words as they're spoken</label>
+    <label><input type="checkbox" id="opt-vibrate"> Vibrate when the slide changes</label>
+    <label><input type="checkbox" id="opt-sr"> Read new captions to my screen reader</label>
+  </fieldset>
+  <button id="settings-done" class="btn">Done</button>
+</div>
+
+<main id="main">
+  <section id="slide-pane" aria-label="Current slide">
+    <div id="slide-box" class="slide-box"></div>
+    <div id="readable" class="readable-box" hidden></div>
+    <div class="slide-nav">
+      <button id="prev" class="btn" aria-label="Previous slide">‹</button>
+      <button id="live" class="btn live-btn" hidden>● Back to live</button>
+      <span id="browsing" class="browsing" hidden></span>
+      <button id="next" class="btn" aria-label="Next slide">›</button>
+    </div>
+    <details id="remarks" class="remarks" hidden>
+      <summary>Speaker's prepared words for this slide</summary>
+      <div id="remarks-text"></div>
+    </details>
+    <div id="paused" class="paused" hidden>The speaker has paused the slides</div>
+  </section>
+
+  <section id="captions" class="captions" aria-label="Live captions" tabindex="-1">
+    <div class="cap-head">
+      <span class="cap-label">Live captions</span>
+      <a id="download" class="cap-dl" href="/f/transcript.txt" download>Save transcript</a>
+    </div>
+    <div id="cap-log" class="cap-log" role="log" aria-live="off" aria-relevant="additions"></div>
+    <button id="cap-latest" class="btn cap-latest" hidden>↓ Latest</button>
+    <p id="cap-off" class="cap-off" hidden>Captions are off for this talk.</p>
+    <p class="cap-note">Made by speech recognition, so expect some mistakes.</p>
+  </section>
+</main>
+
+<div id="announce" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+<script src="/f/vendor/marked.min.js"></script>
+<script src="/f/render.js"></script>
+<script src="/f/follow.js"></script>
+</body>
+</html>

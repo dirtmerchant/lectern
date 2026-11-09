@@ -1,0 +1,8 @@
+{
+  "title": "My talk",
+  "slides": "slides.md",
+  "talkMinutes": 20,
+  "slotMinutes": 25,
+  "captions": { "enabled": true, "lang": "en-US", "onProjector": false },
+  "followAlong": { "enabled": true, "qrOnSlides": ["slide-1"], "showAhead": false, "shareScript": false }
+}

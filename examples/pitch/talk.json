@@ -1,0 +1,8 @@
+{
+  "title": "lectern: every talk, captioned, in your hand",
+  "slides": "slides.md",
+  "talkMinutes": 4,
+  "slotMinutes": 5,
+  "captions": { "enabled": true, "lang": "en-US", "onProjector": true },
+  "followAlong": { "enabled": true, "qrOnSlides": ["slide-1", "slide-7"], "showAhead": false, "shareScript": false }
+}
