@@ -116,3 +116,34 @@ html, body { margin: 0; height: 100%; background: #000; color: var(--text);
 #sp-captions .a-rec.on { color: var(--red); font-weight: 700; }
 #sp-captions .a-es.ok { color: var(--green); }
 #sp-captions .a-es.bad { color: var(--orange); }
+
+/* ---------- Narrow speaker window (e.g. beside the stage view): one column,
+   notes on top where the eye goes, slide previews side by side below ---------- */
+@media (max-width: 760px) {
+  #speaker header { grid-template-columns: auto 1fr auto; gap: 10px; padding: 10px 14px; }
+  #sp-num { font-size: 22px; }
+  #sp-id { display: none; }
+  #speaker .clock { justify-content: center; gap: 10px; }
+  #sp-elapsed { font-size: 30px; }
+  #sp-pace { font-size: 14px; padding: 2px 8px; }
+  #speaker .meta { font-size: 12px; }
+  #sp-target { display: none; }
+  #speaker main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  #speaker .right { order: -1; padding: 14px 18px 20px; border-bottom: 1px solid var(--line); }
+  #speaker .left { border-right: 0; padding: 10px 14px 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; align-content: start; }
+  #speaker .left > .label:first-child { grid-column: 1; grid-row: 1; }
+  #sp-current { grid-column: 1; grid-row: 2; }
+  #sp-next-label { grid-column: 2; grid-row: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #sp-next, .preview.small { grid-column: 2; grid-row: 2; width: 100%; }
+  #sp-clip, #sp-captions, #sp-follow { grid-column: 1 / -1; margin-top: 4px; }
+  #sp-follow svg { width: 56px; height: 56px; }
+  #sp-follow .f-count { font-size: 17px; }
+  #sp-captions .c-text { display: none; }
+  #speaker footer { display: none; }
+}
+
+/* Pin each speaker row so a hidden alert bar doesn't shift main into an auto row. */
+#speaker header { grid-row: 1; }
+#sp-alert { grid-row: 2; }
+#speaker main { grid-row: 3; }
+#speaker footer { grid-row: 4; }
