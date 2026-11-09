@@ -47,6 +47,7 @@ Built for deaf and hard-of-hearing attendees. Useful for everyone:
 
 - Runs on the speaker's laptop. No cloud service, no accounts, no app to install
 - Captions come from the laptop mic, on-device where Chrome supports it
+- Every caption saved to **Elasticsearch**, timestamped against the recording: search any talk, jump to the moment
 - Phones get a **read-only** page: speaker notes never leave the laptop
 - Phones can't skip ahead of the speaker
 - Any Markdown deck: `./present.sh init my-talk`
@@ -59,7 +60,7 @@ Security model: two listeners. Presenter on localhost with full control; phones 
 ## Built today on yesterday's presenter
 
 - **Before:** a two-window presenter I wrote for my ArgoCon talk
-- **Today:** any deck, live captions, phone follow-along, QR join, accessibility settings
+- **Today:** any deck, live captions, phone follow-along, QR join, accessibility settings, Elasticsearch archive, recording
 - Built with Claude Code, disclosed in the README
 
 ---
