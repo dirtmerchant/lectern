@@ -3,8 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Presenter</title>
+<title>lectern</title>
 <link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="theme.css">
 <link rel="stylesheet" href="present.css">
 </head>
 <body>
@@ -12,6 +13,15 @@
 <!-- Audience: the projector -->
 <div id="audience" hidden>
   <div id="stage"></div>
+  <div id="qr" hidden aria-hidden="true">
+    <div class="qr-code"></div>
+    <div class="qr-text">
+      <div class="qr-title">Follow along on your phone</div>
+      <div class="qr-sub">Slides on your own screen, in large text if you like.</div>
+      <div class="qr-url"></div>
+    </div>
+  </div>
+  <div id="cc" hidden aria-hidden="true"><div class="cc-text"></div></div>
   <div id="black"></div>
 </div>
 
@@ -33,6 +43,18 @@
       </div>
       <div class="label" id="sp-next-label">NEXT</div>
       <div id="sp-next" class="preview small"></div>
+      <div id="sp-captions" hidden>
+        <div class="c-status"><span class="c-dot"></span><span class="c-label">Captions starting…</span></div>
+        <div class="c-text"></div>
+      </div>
+      <div id="sp-follow" hidden>
+        <div class="f-code"></div>
+        <div class="f-text">
+          <div class="f-count">0 phones following</div>
+          <div class="f-url"></div>
+          <div class="f-qr">Q shows the QR code on the projector</div>
+        </div>
+      </div>
     </section>
     <section class="right">
       <div id="sp-script"></div>
@@ -44,12 +66,15 @@
   </main>
   <footer>
     → / Space / PgDn next (plays a clip first) · ← back · K pause clip · J restart clip · B black screen ·
-    T start/pause timer · R reset timer · number + Enter jump · + / − script size
+    Q QR code · M captions mic on/off · C captions on projector · T start/pause timer · R reset timer · number + Enter jump · + / − script size
     <span id="sp-goto"></span>
   </footer>
 </div>
 
 <div id="boot">Loading deck…</div>
+<script src="vendor/marked.min.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="render.js"></script>
 <script src="present.js"></script>
 </body>
 </html>

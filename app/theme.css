@@ -1,0 +1,46 @@
+/* Slide canvas, shared by the presenter and the phone view.
+   HTML decks (Claude Slides format) carry their own inline styles;
+   Markdown decks get the .md-slide theme below. */
+.canvas { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: hidden; transform-origin: 0 0; }
+.canvas section { position: relative; width: 1920px; height: 1080px; overflow: hidden;
+  font-size: 32px; font-weight: 400; line-height: 1.4; box-sizing: border-box; }
+.canvas section *, .canvas section *::before, .canvas section *::after { margin: 0; box-sizing: border-box; }
+.canvas div { min-width: 0; }
+.canvas h1, .canvas h2, .canvas h3, .canvas p, .canvas li, .canvas td, .canvas th { overflow-wrap: break-word; }
+.canvas h1 { font-size: 96px; font-weight: 600; line-height: 1.1; }
+.canvas h2 { font-size: 64px; font-weight: 600; line-height: 1.15; }
+.canvas h3 { font-size: 44px; font-weight: 600; line-height: 1.2; }
+.canvas ul, .canvas ol { padding-left: 1.3em; }
+.canvas table { border-collapse: collapse; }
+.canvas th, .canvas td { padding: 0.35em 0.6em; border: 1px solid rgba(160, 170, 180, 0.28); vertical-align: top; text-align: left; }
+.canvas th { font-weight: 600; }
+.canvas aside { display: none; }
+.canvas video, .canvas img { display: block; }
+
+/* ---------- Markdown theme ---------- */
+.canvas section.md-slide {
+  --md-bg: #0F1419; --md-fg: #F2F0EB; --md-dim: #9AA4AE; --md-accent: #E8833A; --md-code: #1B232C;
+  background: var(--md-bg); color: var(--md-fg);
+  font-family: 'IBM Plex Sans', -apple-system, Arial, sans-serif; font-size: 44px;
+  padding: 120px 140px 140px; display: flex; flex-direction: column; gap: 36px; justify-content: flex-start;
+}
+.canvas section.md-slide h1 { font-size: 112px; letter-spacing: -1px; }
+.canvas section.md-slide h2 { font-size: 76px; color: var(--md-fg); }
+.canvas section.md-slide h2::after { content: ''; display: block; width: 120px; height: 6px; margin-top: 28px; background: var(--md-accent); border-radius: 3px; }
+.canvas section.md-slide h3 { font-size: 52px; color: var(--md-accent); }
+.canvas section.md-slide p { color: var(--md-fg); }
+.canvas section.md-slide li { margin: 0.25em 0; }
+.canvas section.md-slide li::marker { color: var(--md-accent); }
+.canvas section.md-slide strong { color: #fff; font-weight: 600; }
+.canvas section.md-slide em { color: var(--md-accent); font-style: normal; }
+.canvas section.md-slide a { color: var(--md-accent); }
+.canvas section.md-slide blockquote { border-left: 8px solid var(--md-accent); padding: 8px 0 8px 40px; color: var(--md-dim); font-size: 52px; }
+.canvas section.md-slide code { font-family: 'JetBrains Mono', monospace; font-size: 0.85em; background: var(--md-code); padding: 0.05em 0.3em; border-radius: 6px; }
+.canvas section.md-slide pre { background: var(--md-code); padding: 32px 40px; border-radius: 12px; font-size: 32px; line-height: 1.45; overflow: hidden; }
+.canvas section.md-slide pre code { background: none; padding: 0; font-size: inherit; }
+.canvas section.md-slide img { max-width: 100%; max-height: 640px; object-fit: contain; align-self: center; }
+.canvas section.md-slide table { font-size: 36px; }
+.canvas section.md-slide.title-slide { justify-content: center; }
+.canvas section.md-slide.title-slide h1 + p, .canvas section.md-slide.title-slide p { color: var(--md-dim); font-size: 48px; }
+.canvas section .clip-placeholder { flex: 1; min-height: 0; width: 100%; max-height: none; object-fit: contain; background: #000; border-radius: 12px; }
+.canvas section .clip-missing { background: #000; }
