@@ -4,5 +4,5 @@
   "talkMinutes": 4,
   "slotMinutes": 5,
   "captions": { "enabled": true, "lang": "en-US", "onProjector": true },
-  "followAlong": { "enabled": true, "qrOnSlides": ["slide-1", "slide-7"], "showAhead": false, "shareScript": false }
+  "followAlong": { "enabled": true, "qrOnSlides": ["slide-1"], "showAhead": false, "shareScript": false }
 }

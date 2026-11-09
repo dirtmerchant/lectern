@@ -65,9 +65,16 @@ Security model: two listeners. Presenter on localhost with full control; phones 
 
 ---
 
-# Try it now
+## Try it now
 
-github.com/dirtmerchant/lectern
+<div style="display:flex;align-items:center;gap:96px;margin-top:24px">
+<img src="repo-qr.svg" alt="QR code linking to github.com/dirtmerchant/lectern" style="width:520px;height:520px;max-height:none;border-radius:24px;flex:none">
+<div style="display:flex;flex-direction:column;gap:28px">
+<p style="font-size:64px;font-weight:600;line-height:1.15">Scan for the code</p>
+<p style="font-family:'JetBrains Mono',monospace;font-size:44px;color:#E8833A">github.com/<br>dirtmerchant/<br>lectern</p>
+<p style="font-size:36px;color:#9AA4AE">Open source · MIT</p>
+</div>
+</div>
 
 Note:
-QR code shows automatically here too.
+Don't read the URL. Point at the code and let them scan.
